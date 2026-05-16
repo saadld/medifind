@@ -207,6 +207,22 @@ export default function HomeScreen() {
           <TipChip icon="⭐" text="Pharmacies favorites" />
         </View>
       </ScrollView>
+
+      {/* ── Floating Action Button for AI Assistant ── */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.fab,
+          pressed && { opacity: 0.9, transform: [{ scale: 0.96 }] }
+        ]}
+        onPress={() => router.push("/assistant")}
+      >
+        <LinearGradient
+          colors={["#0EA5E9", "#0369A1"]}
+          style={styles.fabGradient}
+        >
+          <Text style={styles.fabIcon}>✨</Text>
+        </LinearGradient>
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -439,5 +455,23 @@ const styles = StyleSheet.create({
   authBtnLoggedIn: {
     backgroundColor: "rgba(239,68,68,0.25)",
     borderColor: "rgba(239,68,68,0.5)",
+  },
+  // FAB
+  fab: {
+    position: "absolute",
+    bottom: 30,
+    right: Spacing.lg,
+    borderRadius: Radius.full,
+    ...Shadow.lg,
+  },
+  fabGradient: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fabIcon: {
+    fontSize: 26,
   },
 });

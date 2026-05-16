@@ -1,4 +1,3 @@
-import { getDeviceId } from "./device";
 import { supabase } from "./supabase";
 
 export type FavoritePharmacy = {
@@ -16,13 +15,20 @@ export type FavoritePharmacy = {
   };
 };
 
+/** Récupère le user_id de l'utilisateur connecté */
+async function getUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw new Error("Utilisateur non connecté");
+  return data.user.id;
+}
+
 export async function isFavorite(pharmacyId: string): Promise<boolean> {
-  const deviceId = await getDeviceId();
+  const userId = await getUserId();
 
   const { data, error } = await supabase
     .from("favorites")
     .select("id")
-    .eq("device_id", deviceId)
+    .eq("user_id", userId)
     .eq("pharmacy_id", pharmacyId)
     .maybeSingle();
 
@@ -31,10 +37,10 @@ export async function isFavorite(pharmacyId: string): Promise<boolean> {
 }
 
 export async function addFavorite(pharmacyId: string) {
-  const deviceId = await getDeviceId();
+  const userId = await getUserId();
 
   const { error } = await supabase.from("favorites").insert({
-    device_id: deviceId,
+    user_id: userId,
     pharmacy_id: pharmacyId,
   });
 
@@ -45,19 +51,19 @@ export async function addFavorite(pharmacyId: string) {
 }
 
 export async function removeFavorite(pharmacyId: string) {
-  const deviceId = await getDeviceId();
+  const userId = await getUserId();
 
   const { error } = await supabase
     .from("favorites")
     .delete()
-    .eq("device_id", deviceId)
+    .eq("user_id", userId)
     .eq("pharmacy_id", pharmacyId);
 
   if (error) throw error;
 }
 
 export async function listFavorites(): Promise<FavoritePharmacy[]> {
-  const deviceId = await getDeviceId();
+  const userId = await getUserId();
 
   // join pharmacies
   const { data, error } = await supabase
@@ -65,7 +71,7 @@ export async function listFavorites(): Promise<FavoritePharmacy[]> {
     .select(
       "pharmacy_id, created_at, pharmacy:pharmacies(id,name,address,lat,lng,phone,hours_json,services_json)",
     )
-    .eq("device_id", deviceId)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;

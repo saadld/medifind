@@ -17,6 +17,7 @@ import {
   View
 } from "react-native";
 import { Palette, Radius, Shadow, Spacing, Typography, UI } from "../constants/theme";
+import { getDeviceId } from "../lib/device";
 import { addFavorite, isFavorite, removeFavorite } from "../lib/favorites";
 import { supabase } from "../lib/supabase";
 
@@ -283,7 +284,7 @@ export default function PharmacyScreen() {
       // Chercher uniquement dans le stock de CETTE pharmacie
       const { data, error } = await supabase
         .from("stocks")
-        .select("quantity, medicine:medicines(id, name, strength)")
+        .select("quantity, medicine:medicines(id, name, strength, requires_prescription)")
         .eq("pharmacy_id", id)
         .gt("quantity", 0)
         .filter("medicines.name", "ilike", `%${query}%`);
@@ -318,6 +319,16 @@ export default function PharmacyScreen() {
     try {
       setSubmitting(true);
 
+      // Validation ordonnance
+      if (selectedMedicine.requires_prescription && !prescriptionImage) {
+        Alert.alert(
+          "Ordonnance obligatoire",
+          "Ce médicament nécessite une ordonnance. Veuillez prendre une photo de votre ordonnance pour continuer."
+        );
+        setSubmitting(false);
+        return;
+      }
+
       // Vérifier que l'utilisateur est connecté
       const { data: userData, error: authErr } = await supabase.auth.getUser();
       if (authErr || !userData.user) {
@@ -333,11 +344,21 @@ export default function PharmacyScreen() {
       }
 
       const userId = userData.user.id;
+      const deviceId = await getDeviceId();
       let prescriptionUrl = null;
 
       // 1. Upload prescription si elle existe
       if (prescriptionImage) {
-        const fileExt = prescriptionImage.split('.').pop();
+        // Nettoyage de l'extension pour éviter les URLs de blob
+        let fileExt = 'jpg';
+        const parts = prescriptionImage.split('.');
+        if (parts.length > 1) {
+          const possibleExt = parts.pop()?.toLowerCase();
+          if (possibleExt && possibleExt.length <= 4) {
+            fileExt = possibleExt;
+          }
+        }
+        
         const fileName = `${userId}_${Date.now()}.${fileExt}`;
 
         const response = await fetch(prescriptionImage);
@@ -345,16 +366,21 @@ export default function PharmacyScreen() {
 
         const { error: uploadError } = await supabase.storage
           .from('prescriptions')
-          .upload(fileName, blob);
+          .upload(fileName, blob, {
+            contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+            cacheControl: '3600',
+            upsert: false
+          });
 
         if (uploadError) throw uploadError;
         prescriptionUrl = fileName;
       }
 
-      // 2. Insérer la réservation avec user_id
+      // 2. Insérer la réservation avec user_id et device_id
       const { error: resError } = await supabase
         .from('reservations')
         .insert({
+          device_id: deviceId,
           user_id: userId,
           pharmacy_id: item.id,
           medicine_id: selectedMedicine.id,
@@ -660,7 +686,12 @@ export default function PharmacyScreen() {
                     </Pressable>
                   </View>
 
-                  <Text style={styles.label}>Ordonnance (Recommandé)</Text>
+                  <Text style={styles.label}>
+                    Ordonnance {selectedMedicine.requires_prescription ? "(Obligatoire)" : "(Recommandé)"}
+                  </Text>
+                  {selectedMedicine.requires_prescription && (
+                    <Text style={styles.mandatoryText}>⚠️ Ce médicament nécessite une ordonnance pour être validé par la pharmacie.</Text>
+                  )}
                   <Pressable style={styles.uploadBtn} onPress={pickImage}>
                     <Text style={styles.uploadBtnText}>
                       {prescriptionImage ? "📷 Changer la photo" : "📷 Prendre une photo / Album"}
@@ -1004,6 +1035,12 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     marginTop: 10,
     resizeMode: "cover",
+  },
+  mandatoryText: {
+    fontSize: 12,
+    color: Palette.dangerText,
+    fontWeight: "600",
+    marginBottom: 8,
   },
   confirmBtn: {
     backgroundColor: Palette.primary,

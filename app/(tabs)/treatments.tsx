@@ -1,4 +1,3 @@
-import * as Application from 'expo-application';
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -18,10 +17,11 @@ import { IconSymbol } from "../../components/ui/icon-symbol";
 import { Palette, Radius, Shadow, Spacing, Typography, UI } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 
-async function getDeviceId(): Promise<string> {
-    if (Platform.OS === 'android') return Application.getAndroidId();
-    if (Platform.OS === 'ios') return await Application.getIosIdForVendorAsync() ?? 'web_device';
-    return 'web_device';
+/** Récupère le user_id de l'utilisateur connecté */
+async function getUserId(): Promise<string> {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) throw new Error("Utilisateur non connecté");
+    return data.user.id;
 }
 
 type Reminder = {
@@ -45,11 +45,11 @@ export default function TreatmentsScreen() {
     const fetchReminders = async () => {
         try {
             setLoading(true);
-            const dId = await getDeviceId();
+            const userId = await getUserId();
             const { data, error } = await supabase
                 .from("pill_reminders")
                 .select("*")
-                .eq("device_id", dId)
+                .eq("user_id", userId)
                 .order("created_at", { ascending: false });
 
             if (error) {
@@ -107,11 +107,11 @@ export default function TreatmentsScreen() {
         }
 
         try {
-            const dId = await getDeviceId();
+            const userId = await getUserId();
             const timesArray = newTimes.split(",").map(t => t.trim());
 
             const { error } = await supabase.from("pill_reminders").insert({
-                device_id: dId,
+                user_id: userId,
                 medicine_name: newName,
                 dosage: newDosage,
                 times_per_day: timesArray,

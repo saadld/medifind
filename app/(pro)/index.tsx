@@ -10,6 +10,7 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     View
@@ -28,6 +29,7 @@ type Reservation = {
     medicine: {
         name: string;
         strength: string | null;
+        requires_prescription: boolean;
     };
 };
 
@@ -37,6 +39,7 @@ type StockItem = {
     medicine: {
         name: string;
         strength: string | null;
+        requires_prescription: boolean;
     };
 };
 
@@ -44,6 +47,7 @@ type GlobalMedicine = {
     id: string;
     name: string;
     strength: string | null;
+    requires_prescription: boolean;
 };
 
 export default function ProDashboard() {
@@ -64,6 +68,7 @@ export default function ProDashboard() {
     const [formName, setFormName] = useState("");
     const [formStrength, setFormStrength] = useState("");
     const [formQuantity, setFormQuantity] = useState("");
+    const [formRequiresPrescription, setFormRequiresPrescription] = useState(false);
     const [selectedMedId, setSelectedMedId] = useState<string | null>(null);
 
     // Edit Stock state (simple quantity update)
@@ -71,6 +76,10 @@ export default function ProDashboard() {
     const [editQuantity, setEditQuantity] = useState("");
     const [editingStockMedId, setEditingStockMedId] = useState<string | null>(null);
     const [editingStockMedName, setEditingStockMedName] = useState("");
+
+    // Prescription View state
+    const [fullImageVisible, setFullImageVisible] = useState(false);
+    const [selectedFullImage, setSelectedFullImage] = useState<string | null>(null);
 
     const loadData = async () => {
         try {
@@ -93,7 +102,7 @@ export default function ProDashboard() {
                     .from("reservations")
                     .select(`
                         id, quantity, status, created_at, prescription_url,
-                        medicine:medicines(name, strength)
+                        medicine:medicines(name, strength, requires_prescription)
                     `)
                     .eq("pharmacy_id", pharm.id)
                     .order("created_at", { ascending: false });
@@ -105,7 +114,7 @@ export default function ProDashboard() {
                     .from("stocks")
                     .select(`
                         quantity, medicine_id,
-                        medicine:medicines(name, strength)
+                        medicine:medicines(name, strength, requires_prescription)
                     `)
                     .eq("pharmacy_id", pharm.id);
 
@@ -136,7 +145,7 @@ export default function ProDashboard() {
         try {
             const { data, error } = await supabase
                 .from("medicines")
-                .select("id, name, strength")
+                .select("id, name, strength, requires_prescription")
                 .ilike("name", `%${query}%`)
                 .limit(5);
             if (error) throw error;
@@ -152,6 +161,7 @@ export default function ProDashboard() {
         setSelectedMedId(med.id);
         setFormName(med.name);
         setFormStrength(med.strength || "");
+        setFormRequiresPrescription(med.requires_prescription || false);
         setSearchResults([]);
     };
 
@@ -178,11 +188,20 @@ export default function ProDashboard() {
 
                 if (existingMed) {
                     medId = existingMed.id;
+                    // Update existing medicine's prescription status if needed
+                    await supabase
+                        .from("medicines")
+                        .update({ requires_prescription: formRequiresPrescription })
+                        .eq("id", medId);
                 } else {
                     // Create NEW medicine
                     const { data: newMed, error: createErr } = await supabase
                         .from("medicines")
-                        .insert({ name: formName.trim(), strength: formStrength.trim() })
+                        .insert({ 
+                            name: formName.trim(), 
+                            strength: formStrength.trim(),
+                            requires_prescription: formRequiresPrescription 
+                        })
                         .select()
                         .single();
                     if (createErr) throw createErr;
@@ -270,6 +289,7 @@ export default function ProDashboard() {
         setFormName("");
         setFormStrength("");
         setFormQuantity("");
+        setFormRequiresPrescription(false);
         setSelectedMedId(null);
         setSearchQuery("");
         setSearchResults([]);
@@ -320,6 +340,8 @@ export default function ProDashboard() {
             ? supabase.storage.from('prescriptions').getPublicUrl(item.prescription_url).data.publicUrl
             : null;
 
+        if (publicUrl) console.log("URL Ordonnance:", publicUrl);
+
         return (
             <View style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -342,7 +364,10 @@ export default function ProDashboard() {
                 {publicUrl && (
                     <View style={styles.prescriptionContainer}>
                         <Text style={styles.labelSmall}>Ordonnance :</Text>
-                        <Image source={{ uri: publicUrl }} style={styles.prescriptionThumb} />
+                        <Pressable onPress={() => { setSelectedFullImage(publicUrl); setFullImageVisible(true); }}>
+                            <Image source={{ uri: publicUrl }} style={styles.prescriptionThumb} />
+                            <Text style={styles.zoomHint}>🔍 Cliquer pour agrandir</Text>
+                        </Pressable>
                     </View>
                 )}
 
@@ -395,6 +420,11 @@ export default function ProDashboard() {
                     <Text style={styles.quantityText}>{item.quantity}</Text>
                 </View>
             </View>
+            {item.medicine?.requires_prescription && (
+                <View style={styles.prescriptionBadge}>
+                    <Text style={styles.prescriptionBadgeText}>📄 Ordonnance obligatoire</Text>
+                </View>
+            )}
             <View style={styles.actions}>
                 <Pressable
                     onPress={() => {
@@ -496,6 +526,18 @@ export default function ProDashboard() {
                                 />
                             </View>
 
+                            <View style={[styles.formGroup, styles.switchGroup]}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.label}>Ordonnance obligatoire</Text>
+                                    <Text style={styles.helperText}>Le client devra obligatoirement joindre une photo.</Text>
+                                </View>
+                                <Switch
+                                    value={formRequiresPrescription}
+                                    onValueChange={setFormRequiresPrescription}
+                                    trackColor={{ false: Palette.border, true: Palette.primary }}
+                                />
+                            </View>
+
                             <Pressable style={UI.btnPrimary} onPress={handleSaveStock}>
                                 <Text style={Typography.button}>Valider le stock</Text>
                             </Pressable>
@@ -531,6 +573,18 @@ export default function ProDashboard() {
                             </Pressable>
                         </View>
                     </View>
+                </View>
+            </Modal>
+
+            {/* Modal IMAGE PLEIN ECRAN */}
+            <Modal visible={fullImageVisible} transparent animationType="fade">
+                <View style={styles.fullImageOverlay}>
+                    <Pressable style={styles.fullImageClose} onPress={() => setFullImageVisible(false)}>
+                        <Text style={styles.fullImageCloseText}>✕ Fermer</Text>
+                    </Pressable>
+                    {selectedFullImage && (
+                        <Image source={{ uri: selectedFullImage }} style={styles.fullImage} />
+                    )}
                 </View>
             </Modal>
         </SafeAreaView>
@@ -623,10 +677,11 @@ const styles = StyleSheet.create({
     },
     prescriptionThumb: {
         width: "100%",
-        height: 150,
+        height: 200,
         borderRadius: Radius.sm,
         marginTop: 6,
-        resizeMode: "cover",
+        backgroundColor: '#eee',
+        resizeMode: "contain",
     },
     actionRow: {
         flexDirection: "row",
@@ -771,5 +826,60 @@ const styles = StyleSheet.create({
     },
     searchLoader: {
         marginTop: 5,
+    },
+    switchGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Palette.background,
+        padding: 12,
+        borderRadius: Radius.sm,
+        marginBottom: 20,
+    },
+    helperText: {
+        fontSize: 12,
+        color: Palette.textMuted,
+    },
+    prescriptionBadge: {
+        backgroundColor: Palette.warning + '20',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: Radius.sm,
+        marginTop: 8,
+        alignSelf: 'flex-start',
+    },
+    prescriptionBadgeText: {
+        fontSize: 11,
+        color: Palette.warning,
+        fontWeight: '700',
+    },
+    zoomHint: {
+        fontSize: 10,
+        color: Palette.primary,
+        textAlign: 'center',
+        marginTop: 4,
+        fontWeight: '600',
+    },
+    fullImageOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fullImage: {
+        width: '95%',
+        height: '80%',
+        resizeMode: 'contain',
+    },
+    fullImageClose: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        padding: 10,
+        zIndex: 10,
+    },
+    fullImageCloseText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '700',
     },
 });

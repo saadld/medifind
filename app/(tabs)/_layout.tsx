@@ -17,12 +17,8 @@ export default function TabLayout() {
           backgroundColor: Palette.surface,
           borderTopWidth: 1,
           borderTopColor: Palette.border,
-          elevation: 10,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 10,
           paddingTop: 5,
+          height: 70,
         },
       }}
     >

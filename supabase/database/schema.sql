@@ -3,17 +3,20 @@
 
 CREATE TABLE public.favorites (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  device_id text NOT NULL,
+  device_id text,
+  user_id uuid,
   pharmacy_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT favorites_pkey PRIMARY KEY (id),
-  CONSTRAINT favorites_pharmacy_id_fkey FOREIGN KEY (pharmacy_id) REFERENCES public.pharmacies(id)
+  CONSTRAINT favorites_pharmacy_id_fkey FOREIGN KEY (pharmacy_id) REFERENCES public.pharmacies(id),
+  CONSTRAINT favorites_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.medicines (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
   form text,
   strength text,
+  requires_prescription boolean DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT medicines_pkey PRIMARY KEY (id)
 );
@@ -34,7 +37,8 @@ CREATE TABLE public.pharmacies (
 );
 CREATE TABLE public.pill_reminders (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  device_id text NOT NULL,
+  device_id text,
+  user_id uuid,
   medicine_name text NOT NULL,
   dosage text,
   times_per_day jsonb NOT NULL,
@@ -42,7 +46,8 @@ CREATE TABLE public.pill_reminders (
   end_date date,
   is_active boolean DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT pill_reminders_pkey PRIMARY KEY (id)
+  CONSTRAINT pill_reminders_pkey PRIMARY KEY (id),
+  CONSTRAINT pill_reminders_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.reservations (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
