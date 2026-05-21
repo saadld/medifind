@@ -264,8 +264,9 @@ export default function PharmacyScreen() {
         await addFavorite(item.id);
         setFavorite(true);
       }
-    } catch {
-      // optionnel: afficher une erreur
+    } catch (e: any) {
+      console.error("Toggle Favorite Error:", e);
+      Alert.alert("Erreur", e?.message || "Impossible de modifier les favoris");
     } finally {
       setFavLoading(false);
     }

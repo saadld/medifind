@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getDeviceId } from "./device";
 
 export type FavoritePharmacy = {
   pharmacy_id: string;
@@ -32,21 +33,30 @@ export async function isFavorite(pharmacyId: string): Promise<boolean> {
     .eq("pharmacy_id", pharmacyId)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    console.error("isFavorite error:", error);
+    throw error;
+  }
   return !!data;
 }
 
 export async function addFavorite(pharmacyId: string) {
   const userId = await getUserId();
+  const deviceId = await getDeviceId();
 
-  const { error } = await supabase.from("favorites").insert({
+  const { data, error } = await supabase.from("favorites").insert({
     user_id: userId,
+    device_id: deviceId,
     pharmacy_id: pharmacyId,
-  });
+  }).select();
 
-  // ignore unique conflict
-  if (error && !String(error.message).toLowerCase().includes("duplicate")) {
+  if (error) {
+    console.error("addFavorite error:", error);
     throw error;
+  }
+  
+  if (!data || data.length === 0) {
+    throw new Error("Insert succeeded but returned no data (possible RLS issue)");
   }
 }
 
